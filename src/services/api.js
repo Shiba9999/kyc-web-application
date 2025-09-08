@@ -33,28 +33,87 @@ apiClient.interceptors.response.use(
   }
 );
 
+// Simulate API delay
+const simulateDelay = (ms = 2000) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const kycApi = {
-  uploadDocument: async (formData) => {
-    const response = await apiClient.post('/kyc/upload-document', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
+  uploadDocument: async (documentBlob) => {
+    console.log('📄 Uploading document...', documentBlob);
+    
+    // Simulate API call
+    await simulateDelay(2000);
+    
+    // Create FormData for real API call (commented for now)
+    // const formData = new FormData();
+    // formData.append('document', documentBlob, 'document.jpg');
+    // const response = await apiClient.post('/kyc/upload-document', formData, {
+    //   headers: { 'Content-Type': 'multipart/form-data' }
+    // });
+    
+    // Fake successful response
+    const fakeResponse = {
+      success: true,
+      message: 'Document uploaded successfully',
+      documentId: 'doc_' + Date.now(),
+      extractedData: {
+        documentType: 'national-id',
+        firstName: 'John',
+        lastName: 'Doe',
+        documentNumber: 'ID123456789'
+      }
+    };
+    
+    console.log('✅ Document upload successful:', fakeResponse);
+    return fakeResponse;
   },
 
-  uploadSelfie: async (formData) => {
-    const response = await apiClient.post('/kyc/upload-selfie', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
+  uploadSelfie: async (selfieBlob) => {
+    console.log('🤳 Uploading selfie...', selfieBlob);
+    
+    // Simulate API call
+    await simulateDelay(2000);
+    
+    // Create FormData for real API call (commented for now)
+    // const formData = new FormData();
+    // formData.append('selfie', selfieBlob, 'selfie.jpg');
+    // const response = await apiClient.post('/kyc/upload-selfie', formData, {
+    //   headers: { 'Content-Type': 'multipart/form-data' }
+    // });
+    
+    // Fake successful response
+    const fakeResponse = {
+      success: true,
+      message: 'Selfie uploaded successfully',
+      selfieId: 'selfie_' + Date.now(),
+      faceMatch: {
+        confidence: 0.95,
+        matched: true
       },
-    });
-    return response.data;
+      livenessCheck: {
+        passed: true,
+        confidence: 0.92
+      }
+    };
+    
+    console.log('✅ Selfie upload successful:', fakeResponse);
+    return fakeResponse;
   },
 
   submitKyc: async (kycData) => {
-    const response = await apiClient.post('/kyc/submit', kycData);
-    return response.data;
+    console.log('🚀 Submitting KYC verification...', kycData);
+    
+    await simulateDelay(1500);
+    
+    // Fake successful response
+    const fakeResponse = {
+      success: true,
+      verificationId: 'kyc_' + Date.now(),
+      status: 'verified',
+      message: 'KYC verification completed successfully'
+    };
+    
+    console.log('✅ KYC verification successful:', fakeResponse);
+    return fakeResponse;
   },
 
   getVerificationStatus: async (sessionId) => {

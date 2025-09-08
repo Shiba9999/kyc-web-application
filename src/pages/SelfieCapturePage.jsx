@@ -8,13 +8,13 @@ import { setLoading } from '../store/slices/uiSlice';
 import { kycApi } from '../services/api';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
-const CameraCapturePage = () => {
+const SelfieCapturePage = () => {
   const [showPermission, setShowPermission] = useState(true);
   const [showCamera, setShowCamera] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { isLoading } = useSelector((state) => state.ui);
+  const { selfieImage } = useSelector((state) => state.kyc);
 
   const handlePermissionGranted = () => {
     setShowPermission(false);
@@ -26,35 +26,37 @@ const CameraCapturePage = () => {
   };
 
   const handleCapture = (imageBlob) => {
-    console.log('Document captured:', imageBlob);
+    console.log('Selfie captured:', imageBlob);
   };
 
   const handleClose = async () => {
-    const documentImage = document.querySelector('canvas')?.toBlob;
-    
-    if (documentImage) {
+    if (selfieImage) {
       setIsUploading(true);
       dispatch(setLoading(true));
       
       try {
-        // Get the actual blob from Redux store
-        const { documentImage: docBlob } = useSelector((state) => state.kyc);
+        // Upload selfie
+        await kycApi.uploadSelfie(selfieImage);
         
-        // Upload document
-        await kycApi.uploadDocument(docBlob);
+        // Submit complete KYC verification
+        await kycApi.submitKyc({
+          documentVerified: true,
+          faceVerified: true,
+          timestamp: new Date().toISOString()
+        });
         
         dispatch(nextStep());
-        navigate('/selfie-preparation');
+        navigate('/verification-success');
       } catch (error) {
-        console.error('Document upload failed:', error);
-        // Handle error - you could show a toast or error message
+        console.error('Selfie upload failed:', error);
+        // Handle error
       } finally {
         setIsUploading(false);
         dispatch(setLoading(false));
       }
     } else {
       dispatch(nextStep());
-      navigate('/selfie-preparation');
+      navigate('/verification-success');
     }
   };
 
@@ -74,10 +76,10 @@ const CameraCapturePage = () => {
       >
         <CircularProgress size={60} sx={{ mb: 3, color: 'white' }} />
         <Typography variant="h6" gutterBottom>
-          Processing Document...
+          Verifying Identity...
         </Typography>
         <Typography variant="body2" color="grey.400">
-          Please wait while we verify your document
+          Please wait while we complete your verification
         </Typography>
       </Box>
     );
@@ -94,7 +96,7 @@ const CameraCapturePage = () => {
       
       {showCamera && (
         <CameraCapture
-          cameraType="back"
+          cameraType="front"
           onCapture={handleCapture}
           onClose={handleClose}
         />
@@ -103,4 +105,4 @@ const CameraCapturePage = () => {
   );
 };
 
-export default CameraCapturePage;
+export default SelfieCapturePage;

@@ -8,6 +8,9 @@ import LandingPage from './pages/LandingPage';
 import DocumentSelection from './pages/DocumentSelection';
 import DocumentPreparation from './pages/DocumentPreparation';
 import CameraCapturePage from './pages/CameraCapturePage';
+import SelfiePreparation from './pages/SelfiePreparation';
+import SelfieCapturePage from './pages/SelfieCapturePage';
+import VerificationSuccess from './pages/VerificationSuccess';
 import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
@@ -24,7 +27,9 @@ function App() {
             <Route path="/document-selection" element={<DocumentSelection />} />
             <Route path="/document-preparation" element={<DocumentPreparation />} />
             <Route path="/camera-capture" element={<CameraCapturePage />} />
-            <Route path="/verification-complete" element={<Navigate to="/" />} />
+            <Route path="/selfie-preparation" element={<SelfiePreparation />} />
+            <Route path="/selfie-capture" element={<SelfieCapturePage />} />
+            <Route path="/verification-success" element={<VerificationSuccess />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Router>

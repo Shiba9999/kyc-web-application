@@ -9,12 +9,11 @@ import {
 } from '@mui/material';
 import {
   PhotoCamera,
-  FlipCameraAndroid,
   Close,
   CheckCircle,
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
-import { setDocumentImage } from '../../store/slices/kycSlice';
+import { setDocumentImage, setSelfieImage } from '../../store/slices/kycSlice';
 import { setCameraActive, setCameraPermission, setError } from '../../store/slices/uiSlice';
 import { CAMERA_CONSTRAINTS } from '../../utils/constants';
 
@@ -25,6 +24,8 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
   
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
+  const [isDocumentDetected, setIsDocumentDetected] = useState(false);
+  const [countdown, setCountdown] = useState(null);
   
   const dispatch = useDispatch();
   const { cameraPermission, isCameraActive, error } = useSelector((state) => state.ui);
@@ -35,6 +36,30 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
       stopCamera();
     };
   }, [cameraType]);
+
+  // Document detection simulation
+  useEffect(() => {
+    if (cameraType === 'back' && videoRef.current) {
+      const interval = setInterval(() => {
+        // Simulate document detection (in real app, use computer vision)
+        setIsDocumentDetected(Math.random() > 0.3);
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [cameraType]);
+
+  // Face capture countdown for selfies
+  useEffect(() => {
+    if (cameraType === 'front' && countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (cameraType === 'front' && countdown === 0) {
+      capturePhoto();
+    }
+  }, [countdown, cameraType]);
 
   const startCamera = async () => {
     try {
@@ -49,6 +74,13 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
       }
       
       dispatch(setCameraPermission('granted'));
+      
+      // Auto-capture for selfie after 3 seconds
+      if (cameraType === 'front') {
+        setTimeout(() => {
+          setCountdown(3);
+        }, 1500);
+      }
     } catch (error) {
       console.error('Camera access error:', error);
       dispatch(setCameraPermission('denied'));
@@ -71,10 +103,40 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    if (cameraType === 'back') {
+      // For document capture - crop to square overlay
+      const squareSize = Math.min(video.videoWidth, video.videoHeight) * 0.8;
+      const x = (video.videoWidth - squareSize) / 2;
+      const y = (video.videoHeight - squareSize) / 2;
+      
+      canvas.width = squareSize;
+      canvas.height = squareSize * 0.625; // Credit card ratio
+      
+      context.drawImage(
+        video,
+        x, y, squareSize, squareSize * 0.625,
+        0, 0, canvas.width, canvas.height
+      );
+    } else {
+      // For face capture - crop to circular area
+      const circleSize = Math.min(video.videoWidth, video.videoHeight) * 0.6;
+      const x = (video.videoWidth - circleSize) / 2;
+      const y = (video.videoHeight - circleSize) / 2;
+      
+      canvas.width = circleSize;
+      canvas.height = circleSize;
+      
+      // Create circular clipping path
+      context.beginPath();
+      context.arc(circleSize/2, circleSize/2, circleSize/2, 0, 2 * Math.PI);
+      context.clip();
+      
+      context.drawImage(
+        video,
+        x, y, circleSize, circleSize,
+        0, 0, canvas.width, canvas.height
+      );
+    }
     
     canvas.toBlob((blob) => {
       const imageUrl = URL.createObjectURL(blob);
@@ -82,6 +144,8 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
       
       if (cameraType === 'back') {
         dispatch(setDocumentImage(blob));
+      } else {
+        dispatch(setSelfieImage(blob));
       }
       
       if (onCapture) {
@@ -94,6 +158,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
 
   const retakePhoto = () => {
     setCapturedImage(null);
+    setCountdown(null);
     startCamera();
   };
 
@@ -121,7 +186,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
       >
         <Alert severity="error" sx={{ mb: 3, maxWidth: 400 }}>
           <Typography>
-            Camera access is required to capture your document. Please allow camera permissions and try again.
+            Camera access is required to capture your {cameraType === 'back' ? 'document' : 'selfie'}. Please allow camera permissions and try again.
           </Typography>
         </Alert>
         <Button variant="contained" onClick={onClose}>
@@ -156,7 +221,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
           <Close />
         </IconButton>
         <Typography variant="h6">
-          {cameraType === 'back' ? 'Document Photo' : 'Selfie Photo'}
+          {cameraType === 'back' ? 'Document Photo' : 'Selfie capture'}
         </Typography>
         <Box />
       </Box>
@@ -200,12 +265,16 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
           >
             <Box
               sx={{
-                width: '80%',
-                maxWidth: 350,
+                width: '85%',
+                maxWidth: 380,
                 aspectRatio: '1.6/1',
-                border: '2px solid white',
-                borderRadius: 2,
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                border: '3px solid',
+                borderColor: isDocumentDetected ? '#4ade80' : 'white',
+                borderRadius: 3,
+                backgroundColor: isDocumentDetected 
+                  ? 'rgba(74, 222, 128, 0.2)' 
+                  : 'rgba(0, 0, 0, 0.3)',
+                transition: 'all 0.3s ease',
               }}
             />
           </Box>
@@ -220,17 +289,29 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              flexDirection: 'column',
             }}
           >
             <Box
               sx={{
-                width: 280,
-                height: 280,
-                border: '3px solid white',
+                width: 300,
+                height: 300,
+                border: '4px solid #2563eb',
                 borderRadius: '50%',
                 backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                mb: 3,
               }}
             />
+            {countdown !== null && countdown > 0 && (
+              <Typography variant="h4" sx={{ color: 'white', fontWeight: 'bold' }}>
+                {countdown}
+              </Typography>
+            )}
+            {countdown === null && (
+              <Typography variant="body1" sx={{ color: 'white' }}>
+                Hold on, almost there...
+              </Typography>
+            )}
           </Box>
         )}
       </Box>
@@ -245,15 +326,17 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
           gap: 3,
         }}
       >
-        {!capturedImage ? (
+        {!capturedImage && cameraType === 'back' ? (
           <IconButton
             onClick={capturePhoto}
-            disabled={isCapturing}
+            disabled={isCapturing || !isDocumentDetected}
             sx={{
               width: 80,
               height: 80,
-              backgroundColor: 'white',
-              '&:hover': { backgroundColor: 'grey.100' },
+              backgroundColor: isDocumentDetected ? '#4ade80' : 'white',
+              '&:hover': { 
+                backgroundColor: isDocumentDetected ? '#22c55e' : 'grey.100' 
+              },
               '&:disabled': { backgroundColor: 'grey.400' },
             }}
           >
@@ -263,7 +346,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
               <PhotoCamera sx={{ fontSize: 40, color: 'black' }} />
             )}
           </IconButton>
-        ) : (
+        ) : capturedImage ? (
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
               variant="outlined"
@@ -280,7 +363,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
               Use Photo
             </Button>
           </Box>
-        )}
+        ) : null}
       </Box>
 
       <canvas ref={canvasRef} style={{ display: 'none' }} />
