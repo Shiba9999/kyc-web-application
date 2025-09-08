@@ -13,12 +13,14 @@ import { setDocumentImage, setSelfieImage } from '../../store/slices/kycSlice';
 import { setCameraActive, setCameraPermission, setError } from '../../store/slices/uiSlice';
 import { CAMERA_CONSTRAINTS } from '../../utils/constants';
 
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
 const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
-  const overlayRef = useRef(null);     // NEW: measure overlay rect precisely
-  const videoBoxRef = useRef(null);    // NEW: common parent for consistent coords
+  const overlayRef = useRef(null);   // measure actual overlay
+  const videoBoxRef = useRef(null);  // parent for consistent coords
 
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
@@ -36,8 +38,9 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
 
   useEffect(() => {
     if (cameraType === 'back' && videoReady) {
-      const interval = setInterval(() => setIsDocumentDetected(true), 600);
-      return () => clearInterval(interval);
+      // Simple detector simulation (replace with CV if needed)
+      const t = setInterval(() => setIsDocumentDetected(true), 600);
+      return () => clearInterval(t);
     }
   }, [cameraType, videoReady]);
 
@@ -53,7 +56,16 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
   const startCamera = async () => {
     try {
       dispatch(setCameraActive(true));
-      const constraints = CAMERA_CONSTRAINTS[cameraType];
+      // Use ideal facingMode for broader Safari support
+      const base = CAMERA_CONSTRAINTS[cameraType];
+      const constraints = {
+        video: {
+          facingMode: cameraType === 'back' ? { ideal: 'environment' } : { ideal: 'user' },
+          width: base?.video?.width || { ideal: 1920 },
+          height: base?.video?.height || { ideal: 1080 },
+        },
+        audio: false,
+      };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
 
@@ -61,9 +73,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           setVideoReady(true);
-          if (cameraType === 'front') {
-            setTimeout(() => setCountdown(3), 1200);
-          }
+          if (cameraType === 'front') setTimeout(() => setCountdown(3), 1000);
         };
       }
       dispatch(setCameraPermission('granted'));
@@ -74,14 +84,11 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
   };
 
   const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-    }
+    if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
     dispatch(setCameraActive(false));
   };
 
-  // Precise cropping using measured rectangles and object-fit: cover mapping.
-  // drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh) crops exactly the source rect. [22][23]
+  // Precise crop under overlay using object-fit: contain mapping
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current || !videoReady) return;
 
@@ -90,64 +97,69 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
-    // 1) Intrinsic video size (pixels from camera)
+    // Intrinsic camera frame (pixels)
     const vW = video.videoWidth;
     const vH = video.videoHeight;
 
-    // 2) On-screen rectangles (CSS pixels)
-    const videoRect = video.getBoundingClientRect();                 // rendered video box [2]
-    const overlayRect = cameraType === 'back'
-      ? overlayRef.current?.getBoundingClientRect()
-      : null;
+    // On-screen rectangles (CSS pixels)
+    const videoRect = video.getBoundingClientRect();
+    const overlayRect = overlayRef.current?.getBoundingClientRect();
 
-    // 3) Scale & overflow produced by object-fit: cover. [21][4]
+    // Scale & paddings for object-fit: contain (no zoom cropping)
     const dW = videoRect.width;
     const dH = videoRect.height;
-    const scale = Math.max(dW / vW, dH / vH);  // cover -> max to fill container [21][4]
+    const scale = Math.min(dW / vW, dH / vH); // contain => min
     const dispW = vW * scale;
     const dispH = vH * scale;
-    const dispX = (dispW - dW) / 2;            // cropped off-screen px left/right (display coords)
-    const dispY = (dispH - dH) / 2;            // cropped off-screen px top/bottom
+    const padX = (dW - dispW) / 2; // letterboxing inside video element
+    const padY = (dH - dispH) / 2;
+
+    let srcX, srcY, srcW, srcH;
 
     if (cameraType === 'back') {
       if (!overlayRect) {
         setIsCapturing(false);
         return;
       }
-
-      // 4) Overlay CSS px relative to video element’s content box
+      // Overlay position relative to video content box
       const oLeftInVideo = overlayRect.left - videoRect.left;
       const oTopInVideo = overlayRect.top - videoRect.top;
 
-      // 5) Map overlay CSS px -> intrinsic video px by reversing cover transform [21][15]
-      const srcX = (oLeftInVideo + dispX) / scale;
-      const srcY = (oTopInVideo + dispY) / scale;
-      const srcW = overlayRect.width / scale;
-      const srcH = overlayRect.height / scale;
-
-      // 6) Draw exact crop (no post scale)
-      canvas.width = Math.round(srcW);
-      canvas.height = Math.round(srcH);
-      ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
+      // Map overlay CSS px -> intrinsic video px (reverse of contain transform)
+      srcX = (oLeftInVideo - padX) / scale;
+      srcY = (oTopInVideo - padY) / scale;
+      srcW = overlayRect.width / scale;
+      srcH = overlayRect.height / scale;
     } else {
-      // Selfie: circular crop centered in video box, 60% of min dimension
-      const diameterCSS = Math.min(dW, dH) * 0.60;
-      const oLeftCSS = (dW - diameterCSS) / 2;
-      const oTopCSS = (dH - diameterCSS) / 2;
+      // Selfie: use measured circle’s bounding rect (overlayRef on circle)
+      const circleRect = overlayRef.current?.getBoundingClientRect();
+      const oLeftInVideo = circleRect.left - videoRect.left;
+      const oTopInVideo = circleRect.top - videoRect.top;
 
-      const srcSize = diameterCSS / scale;
-      const srcX = (oLeftCSS + dispX) / scale;
-      const srcY = (oTopCSS + dispY) / scale;
+      const sizeCSS = Math.min(circleRect.width, circleRect.height);
+      srcX = (oLeftInVideo - padX) / scale;
+      srcY = (oTopInVideo - padY) / scale;
+      srcW = sizeCSS / scale;
+      srcH = sizeCSS / scale;
+    }
 
-      canvas.width = Math.round(srcSize);
-      canvas.height = Math.round(srcSize);
+    // Clamp inside source frame to avoid edges due to subpixel math
+    srcX = clamp(srcX, 0, Math.max(0, vW - srcW));
+    srcY = clamp(srcY, 0, Math.max(0, vH - srcH));
 
+    // Draw exact crop (1:1, no extra scaling)
+    canvas.width = Math.round(srcW);
+    canvas.height = Math.round(srcH);
+
+    if (cameraType === 'front') {
       ctx.save();
       ctx.beginPath();
       ctx.arc(canvas.width / 2, canvas.height / 2, canvas.width / 2, 0, Math.PI * 2);
       ctx.clip();
-      ctx.drawImage(video, srcX, srcY, srcSize, srcSize, 0, 0, srcSize, srcSize);
+      ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
       ctx.restore();
+    } else {
+      ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
     }
 
     canvas.toBlob(
@@ -178,26 +190,11 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
 
   if (cameraPermission === 'denied') {
     return (
-      <Box
-        sx={{
-          position: 'fixed',
-          inset: 0,
-          bgcolor: 'black',
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          p: 3,
-        }}
-      >
+      <Box sx={{ position: 'fixed', inset: 0, bgcolor: 'black', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
         <Alert severity="error" sx={{ mb: 3, maxWidth: 400 }}>
-          <Typography>
-            Camera access is required to capture your {cameraType === 'back' ? 'document' : 'selfie'}.
-          </Typography>
+          <Typography>Camera access is required to capture your {cameraType === 'back' ? 'document' : 'selfie'}.</Typography>
         </Alert>
-        <Button variant="contained" onClick={confirmPhoto}>
-          Go Back
-        </Button>
+        <Button variant="contained" onClick={confirmPhoto}>Go Back</Button>
       </Box>
     );
   }
@@ -206,17 +203,16 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
     <Box sx={{ position: 'fixed', inset: 0, height: '100dvh', bgcolor: 'black', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, pt: 'max(2px, env(safe-area-inset-top))', color: 'white' }}>
-        <IconButton onClick={confirmPhoto} sx={{ color: 'white' }}>
-          <Close />
-        </IconButton>
+        <IconButton onClick={confirmPhoto} sx={{ color: 'white' }}><Close /></IconButton>
         <Typography variant="h6">{cameraType === 'back' ? 'Document Photo' : 'Selfie capture'}</Typography>
         <Box />
       </Box>
 
-      {/* Camera View */}
+      {/* Live view */}
       <Box ref={videoBoxRef} sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {!capturedImage ? (
-          <video ref={videoRef} autoPlay playsInline muted className="media-cover" />
+          // IMPORTANT: object-fit: contain to remove “zoomed” look
+          <video ref={videoRef} autoPlay playsInline muted className="media-contain" />
         ) : (
           <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <img
@@ -228,7 +224,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
           </Box>
         )}
 
-        {/* Document overlay (measured for exact crop) */}
+        {/* Document overlay */}
         {cameraType === 'back' && !capturedImage && (
           <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Box
@@ -251,6 +247,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
         {cameraType === 'front' && !capturedImage && (
           <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
             <Box
+              ref={overlayRef}
               sx={{
                 width: { xs: 240, sm: 300 },
                 height: { xs: 240, sm: 300 },
@@ -261,14 +258,10 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
               }}
             />
             {countdown !== null && countdown > 0 && (
-              <Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>
-                {countdown}
-              </Typography>
+              <Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>{countdown}</Typography>
             )}
             {countdown === null && (
-              <Typography variant="body1" sx={{ color: 'white' }}>
-                Hold on, almost there...
-              </Typography>
+              <Typography variant="body1" sx={{ color: 'white' }}>Hold on, almost there...</Typography>
             )}
           </Box>
         )}
@@ -291,12 +284,8 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
           </IconButton>
         ) : capturedImage ? (
           <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button variant="outlined" onClick={retakePhoto} sx={{ color: 'white', borderColor: 'white' }}>
-              Retake
-            </Button>
-            <Button variant="contained" onClick={confirmPhoto} startIcon={<CheckCircle />}>
-              Use Photo
-            </Button>
+            <Button variant="outlined" onClick={retakePhoto} sx={{ color: 'white', borderColor: 'white' }}>Retake</Button>
+            <Button variant="contained" onClick={confirmPhoto} startIcon={<CheckCircle />}>Use Photo</Button>
           </Box>
         ) : null}
       </Box>

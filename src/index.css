@@ -1,32 +1,49 @@
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+/* Global safe-area + full-height foundation */
+:root{
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
+}
+
+html, body, #root{
+  height: 100%;
+  margin: 0;
+}
+
+body{
+  background: #f8fafc;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none; /* nicer camera screen scroll */
 }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+#root{
+  max-width: none;   /* remove template constraint */
+  padding: 0;        /* remove template padding */
 }
 
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+*{ box-sizing: border-box; }
+
+/* Media helpers used by CameraCapture */
+.media-contain{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;      /* show full frame, no implicit zoom */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
-* {
-  box-sizing: border-box;
+.media-cover{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;        /* keep if needed elsewhere */
+}
+
+/* Optional utility for iOS safe areas */
+.safe-pad{
+  padding-top: max(8px, var(--safe-top));
+  padding-right: max(16px, var(--safe-right));
+  padding-bottom: max(8px, var(--safe-bottom));
+  padding-left: max(16px, var(--safe-left));
 }
