@@ -11,7 +11,7 @@ import {
   ListItemIcon,
   ListItemText,
 } from '@mui/material';
-import { PhotoCamera, Lightbulb, Visibility, Glasses } from '@mui/icons-material';
+import { PhotoCamera, Lightbulb, Visibility, VisibilityOff } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { nextStep } from '../store/slices/kycSlice';
@@ -124,7 +124,7 @@ const SelfiePreparation = () => {
               </ListItem>
               <ListItem>
                 <ListItemIcon>
-                  <Glasses sx={{ color: '#ef4444' }} />
+                  <VisibilityOff sx={{ color: '#ef4444' }} />
                 </ListItemIcon>
                 <ListItemText 
                   primary="No glasses to prevent glare or reflections"
