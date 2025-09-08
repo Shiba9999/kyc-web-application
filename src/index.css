@@ -26,14 +26,25 @@ body{
 *{ box-sizing: border-box; }
 
 /* Media helpers used by CameraCapture */
-.media-contain{
+.media-contain {
   width: 100%;
   height: 100%;
-  object-fit: contain;      /* show full frame, no implicit zoom */
+  object-fit: contain;
+  object-position: 50% 50%; /* center the content inside the element */
   transform: translateZ(0);
   backface-visibility: hidden;
 }
-
+.media-preview {
+  display: block;
+  width: auto;         /* don't stretch */
+  height: auto;        /* don't stretch */
+  max-width: 92%;
+  max-height: 92%;
+  object-fit: contain; /* keep aspect ratio without cropping */
+  object-position: 50% 50%; /* ensure exact centering inside its own box */
+  border-radius: 12px; /* keep the rounded look */
+  margin: 0 auto;      /* horizontal centering fallback */
+}
 .media-cover{
   width: 100%;
   height: 100%;

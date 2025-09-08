@@ -19,7 +19,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
-  const overlayRef = useRef(null);   // measure actual overlay
+  const overlayRef = useRef(null);   // measured overlay rect
   const videoBoxRef = useRef(null);  // parent for consistent coords
 
   const [isCapturing, setIsCapturing] = useState(false);
@@ -38,7 +38,6 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
 
   useEffect(() => {
     if (cameraType === 'back' && videoReady) {
-      // Simple detector simulation (replace with CV if needed)
       const t = setInterval(() => setIsDocumentDetected(true), 600);
       return () => clearInterval(t);
     }
@@ -56,7 +55,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
   const startCamera = async () => {
     try {
       dispatch(setCameraActive(true));
-      // Use ideal facingMode for broader Safari support
+      // Use ideal for wider Safari/device support
       const base = CAMERA_CONSTRAINTS[cameraType];
       const constraints = {
         video: {
@@ -97,22 +96,22 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
-    // Intrinsic camera frame (pixels)
+    // 1) Intrinsic camera frame (pixels)
     const vW = video.videoWidth;
     const vH = video.videoHeight;
 
-    // On-screen rectangles (CSS pixels)
-    const videoRect = video.getBoundingClientRect();
+    // 2) On-screen rectangles (CSS pixels)
+    const videoRect = video.getBoundingClientRect();           // measured box [web:170]
     const overlayRect = overlayRef.current?.getBoundingClientRect();
 
-    // Scale & paddings for object-fit: contain (no zoom cropping)
+    // 3) object-fit: contain => scale by min and add letterbox padding (no “zoom”) [web:68]
     const dW = videoRect.width;
     const dH = videoRect.height;
-    const scale = Math.min(dW / vW, dH / vH); // contain => min
+    const scale = Math.min(dW / vW, dH / vH); // contain scale
     const dispW = vW * scale;
     const dispH = vH * scale;
-    const padX = (dW - dispW) / 2; // letterboxing inside video element
-    const padY = (dH - dispH) / 2;
+    const padX = (dW - dispW) / 2;           // left/right padding inside video element
+    const padY = (dH - dispH) / 2;           // top/bottom padding
 
     let srcX, srcY, srcW, srcH;
 
@@ -121,17 +120,17 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
         setIsCapturing(false);
         return;
       }
-      // Overlay position relative to video content box
+      // Overlay relative to video element
       const oLeftInVideo = overlayRect.left - videoRect.left;
       const oTopInVideo = overlayRect.top - videoRect.top;
 
-      // Map overlay CSS px -> intrinsic video px (reverse of contain transform)
+      // Reverse the contain transform to get intrinsic video coordinates [web:68]
       srcX = (oLeftInVideo - padX) / scale;
       srcY = (oTopInVideo - padY) / scale;
       srcW = overlayRect.width / scale;
       srcH = overlayRect.height / scale;
     } else {
-      // Selfie: use measured circle’s bounding rect (overlayRef on circle)
+      // Selfie circle: use circle's bounding rect
       const circleRect = overlayRef.current?.getBoundingClientRect();
       const oLeftInVideo = circleRect.left - videoRect.left;
       const oTopInVideo = circleRect.top - videoRect.top;
@@ -143,11 +142,11 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
       srcH = sizeCSS / scale;
     }
 
-    // Clamp inside source frame to avoid edges due to subpixel math
+    // 4) Clamp inside intrinsic frame to avoid edge artifacts
     srcX = clamp(srcX, 0, Math.max(0, vW - srcW));
     srcY = clamp(srcY, 0, Math.max(0, vH - srcH));
 
-    // Draw exact crop (1:1, no extra scaling)
+    // 5) Draw exact crop (1:1) to canvas using drawImage’s 9-arg signature [web:108]
     canvas.width = Math.round(srcW);
     canvas.height = Math.round(srcH);
 
@@ -208,23 +207,31 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
         <Box />
       </Box>
 
-      {/* Live view */}
+      {/* Camera View */}
       <Box ref={videoBoxRef} sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {!capturedImage ? (
-          // IMPORTANT: object-fit: contain to remove “zoomed” look
-          <video ref={videoRef} autoPlay playsInline muted className="media-contain" />
-        ) : (
-          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {capturedImage ? (
+          <Box
+            sx={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             <img
               src={capturedImage}
               alt="Captured"
-              className="media-contain"
-              style={{ maxWidth: '92%', maxHeight: '92%', borderRadius: cameraType === 'front' ? '50%' : 12 }}
+              className="media-preview"
+              style={{ borderRadius: cameraType === 'front' ? '50%' : '12px' }}
             />
           </Box>
+        ) : (
+          // IMPORTANT: contain => no implicit zoom; full frame visible [web:68]
+          <video ref={videoRef} autoPlay playsInline muted className="media-contain" />
         )}
 
-        {/* Document overlay */}
+        {/* Document overlay (measured for exact crop) */}
         {cameraType === 'back' && !capturedImage && (
           <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Box
@@ -243,7 +250,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
           </Box>
         )}
 
-        {/* Selfie overlay */}
+        {/* Selfie overlay (circle) */}
         {cameraType === 'front' && !capturedImage && (
           <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
             <Box
