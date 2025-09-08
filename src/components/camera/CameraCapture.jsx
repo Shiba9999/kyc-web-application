@@ -26,6 +26,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
   const [capturedImage, setCapturedImage] = useState(null);
   const [isDocumentDetected, setIsDocumentDetected] = useState(false);
   const [countdown, setCountdown] = useState(null);
+  const [videoReady, setVideoReady] = useState(false);
   
   const dispatch = useDispatch();
   const { cameraPermission, isCameraActive, error } = useSelector((state) => state.ui);
@@ -39,15 +40,14 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
 
   // Document detection simulation
   useEffect(() => {
-    if (cameraType === 'back' && videoRef.current) {
+    if (cameraType === 'back' && videoReady) {
       const interval = setInterval(() => {
-        // Simulate document detection (in real app, use computer vision)
         setIsDocumentDetected(Math.random() > 0.3);
       }, 1000);
       
       return () => clearInterval(interval);
     }
-  }, [cameraType]);
+  }, [cameraType, videoReady]);
 
   // Face capture countdown for selfies
   useEffect(() => {
@@ -71,6 +71,9 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          setVideoReady(true);
+        };
       }
       
       dispatch(setCameraPermission('granted'));
@@ -96,46 +99,82 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
   };
 
   const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current || !videoReady) return;
 
     setIsCapturing(true);
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
 
+    // Get actual video dimensions
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
+
     if (cameraType === 'back') {
-      // For document capture - crop to square overlay
-      const squareSize = Math.min(video.videoWidth, video.videoHeight) * 0.8;
-      const x = (video.videoWidth - squareSize) / 2;
-      const y = (video.videoHeight - squareSize) / 2;
+      // For document capture - match the overlay box exactly
+      const overlayWidthPercent = 0.85; // 85% as defined in overlay
+      const overlayAspectRatio = 1.6; // 1.6:1 aspect ratio
       
-      canvas.width = squareSize;
-      canvas.height = squareSize * 0.625; // Credit card ratio
+      // Calculate overlay dimensions based on container
+      const containerWidth = video.offsetWidth;
+      const containerHeight = video.offsetHeight;
+      const overlayWidth = containerWidth * overlayWidthPercent;
+      const overlayHeight = overlayWidth / overlayAspectRatio;
       
+      // Calculate the scaling factor between video stream and displayed video
+      const scaleX = videoWidth / containerWidth;
+      const scaleY = videoHeight / containerHeight;
+      
+      // Calculate crop area in actual video coordinates
+      const cropWidth = overlayWidth * scaleX;
+      const cropHeight = overlayHeight * scaleY;
+      const cropX = (videoWidth - cropWidth) / 2;
+      const cropY = (videoHeight - cropHeight) / 2;
+      
+      // Set canvas to exact crop dimensions
+      canvas.width = cropWidth;
+      canvas.height = cropHeight;
+      
+      // Draw only the cropped area
       context.drawImage(
         video,
-        x, y, squareSize, squareSize * 0.625,
-        0, 0, canvas.width, canvas.height
+        cropX, cropY, cropWidth, cropHeight, // Source rectangle
+        0, 0, cropWidth, cropHeight // Destination rectangle
       );
-    } else {
-      // For face capture - crop to circular area
-      const circleSize = Math.min(video.videoWidth, video.videoHeight) * 0.6;
-      const x = (video.videoWidth - circleSize) / 2;
-      const y = (video.videoHeight - circleSize) / 2;
       
-      canvas.width = circleSize;
-      canvas.height = circleSize;
+    } else {
+      // For face capture - match the circular overlay exactly
+      const overlayDiameter = 300; // 300px as defined in overlay
+      
+      // Calculate the scaling factor
+      const containerWidth = video.offsetWidth;
+      const containerHeight = video.offsetHeight;
+      const scaleX = videoWidth / containerWidth;
+      const scaleY = videoHeight / containerHeight;
+      
+      // Calculate crop area in actual video coordinates
+      const cropDiameter = overlayDiameter * Math.min(scaleX, scaleY);
+      const cropX = (videoWidth - cropDiameter) / 2;
+      const cropY = (videoHeight - cropDiameter) / 2;
+      
+      // Set canvas to crop dimensions
+      canvas.width = cropDiameter;
+      canvas.height = cropDiameter;
       
       // Create circular clipping path
+      context.save();
       context.beginPath();
-      context.arc(circleSize/2, circleSize/2, circleSize/2, 0, 2 * Math.PI);
+      context.arc(cropDiameter/2, cropDiameter/2, cropDiameter/2, 0, 2 * Math.PI);
       context.clip();
       
+      // Draw only the cropped circular area
       context.drawImage(
         video,
-        x, y, circleSize, circleSize,
-        0, 0, canvas.width, canvas.height
+        cropX, cropY, cropDiameter, cropDiameter, // Source rectangle
+        0, 0, cropDiameter, cropDiameter // Destination rectangle
       );
+      
+      context.restore();
     }
     
     canvas.toBlob((blob) => {
@@ -159,6 +198,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
   const retakePhoto = () => {
     setCapturedImage(null);
     setCountdown(null);
+    setVideoReady(false);
     startCamera();
   };
 
@@ -241,15 +281,27 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
             }}
           />
         ) : (
-          <img
-            src={capturedImage}
-            alt="Captured"
-            style={{
+          <Box
+            sx={{
               width: '100%',
               height: '100%',
-              objectFit: 'cover',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'black',
             }}
-          />
+          >
+            <img
+              src={capturedImage}
+              alt="Captured"
+              style={{
+                maxWidth: '90%',
+                maxHeight: '90%',
+                objectFit: 'contain',
+                borderRadius: cameraType === 'front' ? '50%' : '12px',
+              }}
+            />
+          </Box>
         )}
 
         {/* Overlay for document capture */}
@@ -329,13 +381,13 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
         {!capturedImage && cameraType === 'back' ? (
           <IconButton
             onClick={capturePhoto}
-            disabled={isCapturing || !isDocumentDetected}
+            disabled={isCapturing || !isDocumentDetected || !videoReady}
             sx={{
               width: 80,
               height: 80,
-              backgroundColor: isDocumentDetected ? '#4ade80' : 'white',
+              backgroundColor: isDocumentDetected && videoReady ? '#4ade80' : 'white',
               '&:hover': { 
-                backgroundColor: isDocumentDetected ? '#22c55e' : 'grey.100' 
+                backgroundColor: isDocumentDetected && videoReady ? '#22c55e' : 'grey.100' 
               },
               '&:disabled': { backgroundColor: 'grey.400' },
             }}
