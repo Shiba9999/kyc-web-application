@@ -12,8 +12,12 @@ const CameraCapturePage = () => {
   const [showPermission, setShowPermission] = useState(true);
   const [showCamera, setShowCamera] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  
+  // Get documentImage from Redux state
+  const { documentImage } = useSelector((state) => state.kyc);
   const { isLoading } = useSelector((state) => state.ui);
 
   const handlePermissionGranted = () => {
@@ -30,29 +34,30 @@ const CameraCapturePage = () => {
   };
 
   const handleClose = async () => {
-    const documentImage = document.querySelector('canvas')?.toBlob;
+    console.log('Use Photo clicked, documentImage:', documentImage);
     
     if (documentImage) {
       setIsUploading(true);
       dispatch(setLoading(true));
       
       try {
-        // Get the actual blob from Redux store
-        const { documentImage: docBlob } = useSelector((state) => state.kyc);
-        
-        // Upload document
-        await kycApi.uploadDocument(docBlob);
+        // Upload document using the blob from Redux state
+        const response = await kycApi.uploadDocument(documentImage);
+        console.log('Document upload response:', response);
         
         dispatch(nextStep());
         navigate('/selfie-preparation');
       } catch (error) {
         console.error('Document upload failed:', error);
-        // Handle error - you could show a toast or error message
+        // For now, continue anyway since it's a fake API
+        dispatch(nextStep());
+        navigate('/selfie-preparation');
       } finally {
         setIsUploading(false);
         dispatch(setLoading(false));
       }
     } else {
+      console.log('No document image found, proceeding anyway...');
       dispatch(nextStep());
       navigate('/selfie-preparation');
     }
