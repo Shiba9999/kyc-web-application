@@ -17,6 +17,8 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
+  const overlayRef = useRef(null);     // NEW: measure overlay rect precisely
+  const videoBoxRef = useRef(null);    // NEW: common parent for consistent coords
 
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
@@ -34,7 +36,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
 
   useEffect(() => {
     if (cameraType === 'back' && videoReady) {
-      const interval = setInterval(() => setIsDocumentDetected(true), 700);
+      const interval = setInterval(() => setIsDocumentDetected(true), 600);
       return () => clearInterval(interval);
     }
   }, [cameraType, videoReady]);
@@ -78,8 +80,8 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
     dispatch(setCameraActive(false));
   };
 
-  // Computes exact crop under overlay, accounting for object-fit: cover scaling.
-  // Uses drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh) to crop source rect. [web:108][web:109][web:102]
+  // Precise cropping using measured rectangles and object-fit: cover mapping.
+  // drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh) crops exactly the source rect. [22][23]
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current || !videoReady) return;
 
@@ -88,50 +90,54 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
-    // Intrinsic camera frame size (pixels)
+    // 1) Intrinsic video size (pixels from camera)
     const vW = video.videoWidth;
     const vH = video.videoHeight;
 
-    // Displayed <video> size in CSS pixels
-    const dW = video.offsetWidth;
-    const dH = video.offsetHeight;
+    // 2) On-screen rectangles (CSS pixels)
+    const videoRect = video.getBoundingClientRect();                 // rendered video box [2]
+    const overlayRect = cameraType === 'back'
+      ? overlayRef.current?.getBoundingClientRect()
+      : null;
 
-    // object-fit: cover scaling and overflow (displayed video bigger than element) [web:68][web:59]
-    const scale = Math.max(dW / vW, dH / vH); // cover uses max to fill container [web:68][web:59]
-    const dispW = vW * scale; // rendered video pixels on screen
+    // 3) Scale & overflow produced by object-fit: cover. [21][4]
+    const dW = videoRect.width;
+    const dH = videoRect.height;
+    const scale = Math.max(dW / vW, dH / vH);  // cover -> max to fill container [21][4]
+    const dispW = vW * scale;
     const dispH = vH * scale;
-    const dispX = (dispW - dW) / 2; // overflow left/right
-    const dispY = (dispH - dH) / 2; // overflow top/bottom
-
-    // Build the overlay box in CSS pixels (centered)
-    let srcX, srcY, srcW, srcH;
+    const dispX = (dispW - dW) / 2;            // cropped off-screen px left/right (display coords)
+    const dispY = (dispH - dH) / 2;            // cropped off-screen px top/bottom
 
     if (cameraType === 'back') {
-      const aspect = 1.6; // 1.6:1 card frame
-      const overlayW = dW * 0.85; // 85% of displayed width
-      const overlayH = overlayW / aspect;
-      const oLeftCSS = (dW - overlayW) / 2;
-      const oTopCSS = (dH - overlayH) / 2;
+      if (!overlayRect) {
+        setIsCapturing(false);
+        return;
+      }
 
-      // Map overlay CSS px -> intrinsic video px by reversing cover transform [web:90][web:104]
-      srcX = (oLeftCSS + dispX) / scale;
-      srcY = (oTopCSS + dispY) / scale;
-      srcW = overlayW / scale;
-      srcH = overlayH / scale;
+      // 4) Overlay CSS px relative to video element’s content box
+      const oLeftInVideo = overlayRect.left - videoRect.left;
+      const oTopInVideo = overlayRect.top - videoRect.top;
 
-      // Draw exact crop into canvas (no scaling) [web:108][web:102]
+      // 5) Map overlay CSS px -> intrinsic video px by reversing cover transform [21][15]
+      const srcX = (oLeftInVideo + dispX) / scale;
+      const srcY = (oTopInVideo + dispY) / scale;
+      const srcW = overlayRect.width / scale;
+      const srcH = overlayRect.height / scale;
+
+      // 6) Draw exact crop (no post scale)
       canvas.width = Math.round(srcW);
       canvas.height = Math.round(srcH);
       ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
     } else {
-      // Selfie circular frame (responsive diameter ~60% of min dimension)
+      // Selfie: circular crop centered in video box, 60% of min dimension
       const diameterCSS = Math.min(dW, dH) * 0.60;
       const oLeftCSS = (dW - diameterCSS) / 2;
       const oTopCSS = (dH - diameterCSS) / 2;
 
       const srcSize = diameterCSS / scale;
-      srcX = (oLeftCSS + dispX) / scale;
-      srcY = (oTopCSS + dispY) / scale;
+      const srcX = (oLeftCSS + dispX) / scale;
+      const srcY = (oTopCSS + dispY) / scale;
 
       canvas.width = Math.round(srcSize);
       canvas.height = Math.round(srcSize);
@@ -208,7 +214,7 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
       </Box>
 
       {/* Camera View */}
-      <Box sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <Box ref={videoBoxRef} sx={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {!capturedImage ? (
           <video ref={videoRef} autoPlay playsInline muted className="media-cover" />
         ) : (
@@ -222,10 +228,11 @@ const CameraCapture = ({ cameraType = 'back', onCapture, onClose }) => {
           </Box>
         )}
 
-        {/* Document overlay (responsive, centered, aspect-ratio keeps precision) [web:71] */}
+        {/* Document overlay (measured for exact crop) */}
         {cameraType === 'back' && !capturedImage && (
           <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Box
+              ref={overlayRef}
               sx={{
                 width: { xs: '88%', sm: '85%' },
                 maxWidth: 440,
