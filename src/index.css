@@ -21,6 +21,8 @@ body{
 #root{
   max-width: none;   /* remove template constraint */
   padding: 0;        /* remove template padding */
+  height: 100vh;
+  height: 100dvh; /* Use dynamic viewport height for mobile */
 }
 
 *{ box-sizing: border-box; }
@@ -57,4 +59,13 @@ body{
   padding-right: max(16px, var(--safe-right));
   padding-bottom: max(8px, var(--safe-bottom));
   padding-left: max(16px, var(--safe-left));
+}
+
+/* Fix for document selection page */
+.document-selection-container {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }

@@ -74,7 +74,7 @@ const CameraPermission = ({ onGranted, onDenied }) => {
           </Box>
 
           <Typography variant="h6" gutterBottom>
-            "verify.didit.me" Would Like to Access the Camera
+            "verify.user.me" Would Like to Access the Camera
           </Typography>
           
           <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
