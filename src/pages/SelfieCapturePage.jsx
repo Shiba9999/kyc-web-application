@@ -47,17 +47,20 @@ const SelfieCapturePage = () => {
       return;
     }
 
+    // Hide camera capture and show loading spinner
+    setShowCamera(false);
     setIsUploading(true);
     dispatch(setLoading(true));
+
     try {
-      const data = await verifyIdentity({ idBlob: documentImage, selfieBlob: selfieImage }); // multipart with FormData [3]
+      const data = await verifyIdentity({ idBlob: documentImage, selfieBlob: selfieImage });
       if (data?.success) {
         dispatch(setVerificationStatus('verified'));
       } else {
         dispatch(setVerificationStatus('failed'));
       }
       dispatch(nextStep());
-      navigate('/verification-success', { state: { result: data } }); // pass result for rendering [4]
+      navigate('/verification-success', { state: { result: data } });
     } catch (err) {
       dispatch(setVerificationStatus('failed'));
       setSnack({
@@ -65,7 +68,7 @@ const SelfieCapturePage = () => {
         msg: err?.response?.data?.message || 'Service error. Please try again.',
         severity: 'error',
       });
-      navigate('/verification-success', { state: { result: { success: false } } }); // show failure state [4]
+      navigate('/verification-success', { state: { result: { success: false } } });
     } finally {
       setIsUploading(false);
       dispatch(setLoading(false));
@@ -83,6 +86,7 @@ const SelfieCapturePage = () => {
         pb: 'max(0px, env(safe-area-inset-bottom))',
       }}
     >
+      {/* Camera Permission Modal */}
       {showPermission && (
         <CameraPermission
           open={showPermission}
@@ -91,23 +95,41 @@ const SelfieCapturePage = () => {
         />
       )}
 
-      {showCamera && (
+      {/* Camera Capture - Only show when NOT uploading */}
+      {!isUploading && showCamera && (
         <CameraCapture cameraType="front" onCapture={handleCapture} onClose={handleClose} />
       )}
 
-      <Backdrop
-        open={isUploading}
-        sx={{ color: '#fff', zIndex: (t) => t.zIndex.modal + 1, flexDirection: 'column', p: 2 }}
-      >
-        <CircularProgress color="inherit" sx={{ mb: 2 }} />
-        <Typography variant={isXs ? 'body1' : 'h6'} sx={{ mb: 0.5, textAlign: 'center' }}>
-          Verifying identity…
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.85, textAlign: 'center' }}>
-          Please wait while we complete your verification
-        </Typography>
-      </Backdrop>
+      {/* Clean Loading Spinner - Only show when uploading */}
+      {isUploading && (
+        <Backdrop
+          open={true}
+          sx={{ 
+            color: '#fff', 
+            zIndex: 9999, 
+            backgroundColor: 'black',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        >
+          <CircularProgress color="inherit" size={60} sx={{ mb: 3 }} />
+          <Typography variant={isXs ? 'h6' : 'h5'} sx={{ mb: 1, textAlign: 'center', fontWeight: 600 }}>
+            Verifying identity…
+          </Typography>
+          <Typography variant="body2" sx={{ opacity: 0.85, textAlign: 'center', maxWidth: '80%' }}>
+            Please wait while we complete your verification
+          </Typography>
+        </Backdrop>
+      )}
 
+      {/* Error/Warning Snackbar */}
       <Snackbar
         open={snack.open}
         autoHideDuration={3000}
