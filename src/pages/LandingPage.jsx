@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { nextStep } from '../store/slices/kycSlice';
 import Layout from '../components/common/Layout';
-import ConKycLogo from '../assets/connkycc.png';
+import ConKycLogo from '../assets/Logo2.png';
 
 const LandingPage = () => {
   const navigate = useNavigate();

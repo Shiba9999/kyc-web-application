@@ -4,7 +4,7 @@ import { ArrowBack, Add } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 // Import the image file
-import ConKycLogo from '../../assets/connkycc.png'; // Adjust path based on your file structure
+import ConKycLogo from '../../assets/Logo2.png'; // Adjust path based on your file structure
 
 const Header = () => {
   const navigate = useNavigate();

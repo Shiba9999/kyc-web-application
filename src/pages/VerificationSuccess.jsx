@@ -160,8 +160,8 @@ const VerificationSuccess = () => {
               sx={{
                 borderRadius: 4,
                 border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-                boxShadow: success 
-                  ? '0 20px 40px rgba(34, 197, 94, 0.1)' 
+                boxShadow: success
+                  ? '0 20px 40px rgba(34, 197, 94, 0.1)'
                   : '0 20px 40px rgba(239, 68, 68, 0.1)',
                 background: 'rgba(255, 255, 255, 0.7)',
                 backdropFilter: 'blur(20px)',
@@ -175,7 +175,7 @@ const VerificationSuccess = () => {
                   left: 0,
                   right: 0,
                   height: 4,
-                  background: success 
+                  background: success
                     ? `linear-gradient(90deg, ${theme.palette.success.main}, ${theme.palette.success.light})`
                     : `linear-gradient(90deg, ${theme.palette.error.main}, ${theme.palette.error.light})`,
                 }
@@ -192,7 +192,7 @@ const VerificationSuccess = () => {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      bgcolor: success 
+                      bgcolor: success
                         ? alpha(theme.palette.success.main, 0.1)
                         : alpha(theme.palette.error.main, 0.1),
                       border: `4px solid ${success ? theme.palette.success.main : theme.palette.error.main}`,
@@ -218,10 +218,10 @@ const VerificationSuccess = () => {
                     )}
                   </Box>
 
-                  <Typography 
-                    variant="h4" 
-                    sx={{ 
-                      fontWeight: 800, 
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      fontWeight: 800,
                       mb: 1,
                       color: success ? "success.dark" : "error.dark",
                       fontSize: { xs: "1.6rem", sm: "2rem" }
@@ -229,11 +229,11 @@ const VerificationSuccess = () => {
                   >
                     {success ? "Verification Complete!" : "Verification Failed"}
                   </Typography>
-                  
-                  <Typography 
-                    variant="body1" 
-                    color="text.secondary" 
-                    sx={{ 
+
+                  <Typography
+                    variant="body1"
+                    color="text.secondary"
+                    sx={{
                       fontSize: { xs: '0.95rem', sm: '1.1rem' },
                       lineHeight: 1.6,
                       maxWidth: 400,
@@ -255,7 +255,7 @@ const VerificationSuccess = () => {
                       </Typography>
                       <Grid container spacing={2}>
                         <Grid item xs={6}>
-                          <Card 
+                          <Card
                             variant="outlined"
                             sx={{
                               border: `2px solid ${theme.palette.success.main}`,
@@ -273,7 +273,7 @@ const VerificationSuccess = () => {
                           </Card>
                         </Grid>
                         <Grid item xs={6}>
-                          <Card 
+                          <Card
                             variant="outlined"
                             sx={{
                               border: `2px solid ${theme.palette.success.main}`,
@@ -306,7 +306,7 @@ const VerificationSuccess = () => {
                           <Share fontSize="small" />
                         </IconButton>
                       </Box>
-                      
+
                       <Grid container spacing={2}>
                         {idType && (
                           <Grid item xs={12} sm={4}>
@@ -323,7 +323,7 @@ const VerificationSuccess = () => {
                         )}
                         {docNo && (
                           <Grid item xs={12} sm={4}>
-                            <Card variant="outlined" sx={{ p: 1.5, textAlign: 'center', borderRadius: 2 }}>
+                            {/* <Card variant="outlined" sx={{ p: 1.5, textAlign: 'center', borderRadius: 2 }}>
                               <Assignment sx={{ color: 'info.main', fontSize: 20, mb: 0.5 }} />
                               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
                                 ID Number
@@ -331,10 +331,19 @@ const VerificationSuccess = () => {
                               <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8rem' }}>
                                 •••• {docNo.slice(-4)}
                               </Typography>
+                            </Card> */}
+                            <Card variant="outlined" sx={{ p: 1.5, textAlign: 'center', borderRadius: 2 }}>
+                              <Assignment sx={{ color: 'info.main', fontSize: 20, mb: 0.5 }} />
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
+                                ID Number
+                              </Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8rem' }}>
+                                {docNo}
+                              </Typography>
                             </Card>
                           </Grid>
                         )}
-                        {faceMatchData.label !== "N/A" && (
+                        {/* {faceMatchData.label !== "N/A" && (
                           <Grid item xs={12} sm={4}>
                             <Card variant="outlined" sx={{ p: 1.5, textAlign: 'center', borderRadius: 2 }}>
                               <Security sx={{ color: isFaceMatch ? 'success.main' : 'warning.main', fontSize: 20, mb: 0.5 }} />
@@ -346,7 +355,7 @@ const VerificationSuccess = () => {
                               </Typography>
                             </Card>
                           </Grid>
-                        )}
+                        )} */}
                       </Grid>
                     </Box>
 
@@ -359,13 +368,13 @@ const VerificationSuccess = () => {
                             <Person sx={{ fontSize: 20, color: 'primary.main' }} />
                             Verified Information
                           </Typography>
-                          
+
                           <Grid container spacing={2}>
                             {firstName && (
                               <Grid item xs={12} sm={6}>
-                                <Box sx={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
+                                <Box sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
                                   p: 2,
                                   bgcolor: alpha(theme.palette.primary.main, 0.04),
                                   borderRadius: 2,
@@ -387,9 +396,9 @@ const VerificationSuccess = () => {
                             )}
                             {lastName && (
                               <Grid item xs={12} sm={6}>
-                                <Box sx={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
+                                <Box sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
                                   p: 2,
                                   bgcolor: alpha(theme.palette.primary.main, 0.04),
                                   borderRadius: 2,
@@ -411,9 +420,9 @@ const VerificationSuccess = () => {
                             )}
                             {dob && (
                               <Grid item xs={12}>
-                                <Box sx={{ 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
+                                <Box sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
                                   p: 2,
                                   bgcolor: alpha(theme.palette.info.main, 0.04),
                                   borderRadius: 2,
@@ -447,7 +456,7 @@ const VerificationSuccess = () => {
                             <Visibility sx={{ fontSize: 20, color: 'primary.main' }} />
                             Document Gallery
                           </Typography>
-                          
+
                           <Grid container spacing={2}>
                             {idUrl && (
                               <Grid item xs={12} sm={6}>
